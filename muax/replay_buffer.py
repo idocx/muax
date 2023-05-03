@@ -117,6 +117,13 @@ class Trajectory:
 
     def __repr__(self):
       return f'{type(self)}(len={len(self)})'
+
+    def get_stats(self):
+        return {
+            'length': len(self),
+            'G': sum([transition.r for transition in self.trajectory]),
+            "actions": [transition.a for transition in self.trajectory],
+        }
       
 
 class BaseReplayBuffer(ABC):

@@ -22,15 +22,15 @@
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE
-"""    
+"""
 
 from abc import ABC, abstractmethod
 from typing import Any, Tuple
 import dataclasses
 from dataclasses import dataclass
-from collections import deque 
+from collections import deque
 from itertools import islice
-import numpy as np 
+import numpy as np
 import jax
 from jax import numpy as jnp
 
@@ -43,30 +43,33 @@ class Transition:
     a: int = 0
     r: float = 0.
     done: bool = False
-    Rn: float = 0. 
-    v: float = 0. 
+    Rn: float = 0.
+    v: float = 0.
     pi: Any = 0.
     w: float = 1.
 
     def __iter__(self):
-      for field in dataclasses.fields(self):
-        yield getattr(self, field.name)
+        for field in dataclasses.fields(self):
+            yield getattr(self, field.name)
 
     def __getitem__(self, index):
-      return Transition(*(_attr[index] for _attr in self))
+        return Transition(*(_attr[index] for _attr in self))
+
 
 def flatten_transition_func(transition: Transition) -> Tuple:
-  return iter(transition), None 
+    return iter(transition), None
+
 
 def unflatten_transition_func(treedef, leaves) -> Transition:
-  return Transition(*leaves)
+    return Transition(*leaves)
+
 
 jax.tree_util.register_pytree_node(
     Transition,
     flatten_func=flatten_transition_func,
     unflatten_func=unflatten_transition_func
-)  
-    
+)
+
 
 class BaseTracer(ABC):
 
@@ -188,7 +191,7 @@ class NStep(BaseTracer):
             v_next = 0
             done = True
             gamman = self._gammas[len(rs) - 1]
-        
+
         Rn += v_next * gamman
 
         return self.transition_class(obs=obs, a=a, r=r, done=done, Rn=Rn, v=v, pi=pi, w=w)
@@ -214,10 +217,11 @@ class PNStep(NStep):
     alpha: float between 0 and 1
         The PER alpha.
     """
+
     def __init__(self, n, gamma, alpha: float = 0.5, transition_class=Transition):
-      self.alpha = float(alpha)
-      super().__init__(n, gamma, transition_class)
-    
+        self.alpha = float(alpha)
+        super().__init__(n, gamma, transition_class)
+
     def pop(self):
         # if not self:
         #     raise InsufficientCacheError(
@@ -241,7 +245,7 @@ class PNStep(NStep):
             v_next = 0
             done = True
             gamman = self._gammas[len(rs) - 1]
-        
+
         Rn += v_next * gamman
 
         w = abs(v - Rn) ** self.alpha

@@ -39,16 +39,18 @@ class sliceable_deque(deque):
     
     Reference: https://stackoverflow.com/questions/10003143/how-to-slice-a-deque
     """
+
     def __getitem__(self, index):
         if isinstance(index, slice):
             return type(self)(islice(self, index.start,
-                                               index.stop, index.step))
+                                     index.stop, index.step))
         return deque.__getitem__(self, index)
 
+
 jax.tree_util.register_pytree_node(
-  sliceable_deque,
-  flatten_func=lambda sd: (sd, None),
-  unflatten_func=lambda treedef, leaves: sliceable_deque(leaves)
+    sliceable_deque,
+    flatten_func=lambda sd: (sd, None),
+    unflatten_func=lambda treedef, leaves: sliceable_deque(leaves)
 )
 
 
@@ -59,20 +61,20 @@ def scale_gradient(g, scale: float = 1):
 
 @partial(jax.jit, static_argnums=(1, 2,))
 def min_max(state, _min: float, _max: float):
-    return (state - _min) / (_max - _min)   
+    return (state - _min) / (_max - _min)
 
 
 def _scaling(x, eps: float = 1e-3):
-  """Reference: https://arxiv.org/abs/1805.11593"""
-  return jnp.sign(x) * (jnp.sqrt(jnp.abs(x) + 1) - 1) + eps * x
+    """Reference: https://arxiv.org/abs/1805.11593"""
+    return jnp.sign(x) * (jnp.sqrt(jnp.abs(x) + 1) - 1) + eps * x
 
 
 def _inv_scaling(x, eps: float = 1e-3):
-  """The inverse scaling of the output of `_scaling`"""
-  return jnp.sign(x) * (
-        ((jnp.sqrt(1 + 4 * eps * (jnp.abs(x) + 1 + eps)) - 1) / (2 * eps))
-        ** 2
-        - 1
+    """The inverse scaling of the output of `_scaling`"""
+    return jnp.sign(x) * (
+            ((jnp.sqrt(1 + 4 * eps * (jnp.abs(x) + 1 + eps)) - 1) / (2 * eps))
+            ** 2
+            - 1
     )
 
 
@@ -80,7 +82,7 @@ def scalar_to_support(x, support_size):
     """Scalar to support"""
     x = _scaling(x)
     x = jnp.clip(x, -support_size, support_size)
-    low = jnp.floor(x).astype(jnp.int32) 
+    low = jnp.floor(x).astype(jnp.int32)
     high = jnp.ceil(x).astype(jnp.int32)
     prob_high = x - low
     prob_low = 1. - prob_high
@@ -95,11 +97,11 @@ def support_to_scalar(probs, support_size):
     """Support to scalar"""
 
     x = jnp.sum(
-      (jnp.arange(2*support_size+1) - support_size)
-       * probs,
+        (jnp.arange(2 * support_size + 1) - support_size)
+        * probs,
         axis=-1)
     x = _inv_scaling(x)
-    return x 
+    return x
 
 
 def diff_transform_matrix(num_frames, dtype='float32'):
@@ -168,14 +170,14 @@ def diff_transform(X, dtype='float32'):
 
 
 def n_step_bootstrapped_returns(
-    r_t,
-    discount_t,
-    v_t,
-    n: int,
-    lambda_t = 1.,
-    stop_target_gradients: bool = False,
+        r_t,
+        discount_t,
+        v_t,
+        n: int,
+        lambda_t=1.,
+        stop_target_gradients: bool = False,
 ):
-  """Computes strided n-step bootstrapped return targets over a sequence.
+    """Computes strided n-step bootstrapped return targets over a sequence.
   The returns are computed according to the below equation iterated `n` times:
      Gₜ = rₜ₊₁ + γₜ₊₁ [(1 - λₜ₊₁) vₜ₊₁ + λₜ₊₁ Gₜ₊₁].
   When lambda_t == 1. (default), this reduces to
@@ -191,32 +193,32 @@ def n_step_bootstrapped_returns(
   Returns:
     estimated bootstrapped returns at times [0, ...., T-1]
   """
-  
-  seq_len = r_t.shape[0]
 
-  # Maybe change scalar lambda to an array.
-  lambda_t = jnp.ones_like(discount_t) * lambda_t
+    seq_len = r_t.shape[0]
 
-  # Shift bootstrap values by n and pad end of sequence with last value v_t[-1].
-  pad_size = min(n - 1, seq_len)
-  targets = jnp.concatenate([v_t[n - 1:], jnp.array([v_t[-1]] * pad_size)])
+    # Maybe change scalar lambda to an array.
+    lambda_t = jnp.ones_like(discount_t) * lambda_t
 
-  # Pad sequences. Shape is now (T + n - 1,).
-  r_t = jnp.concatenate([r_t, jnp.zeros(n - 1)])
-  discount_t = jnp.concatenate([discount_t, jnp.ones(n - 1)])
-  lambda_t = jnp.concatenate([lambda_t, jnp.ones(n - 1)])
-  v_t = jnp.concatenate([v_t, jnp.array([v_t[-1]] * (n - 1))])
+    # Shift bootstrap values by n and pad end of sequence with last value v_t[-1].
+    pad_size = min(n - 1, seq_len)
+    targets = jnp.concatenate([v_t[n - 1:], jnp.array([v_t[-1]] * pad_size)])
 
-  # Work backwards to compute n-step returns.
-  for i in reversed(range(n)):
-    r_ = r_t[i:i + seq_len]
-    discount_ = discount_t[i:i + seq_len]
-    lambda_ = lambda_t[i:i + seq_len]
-    v_ = v_t[i:i + seq_len]
-    targets = r_ + discount_ * ((1. - lambda_) * v_ + lambda_ * targets)
+    # Pad sequences. Shape is now (T + n - 1,).
+    r_t = jnp.concatenate([r_t, jnp.zeros(n - 1)])
+    discount_t = jnp.concatenate([discount_t, jnp.ones(n - 1)])
+    lambda_t = jnp.concatenate([lambda_t, jnp.ones(n - 1)])
+    v_t = jnp.concatenate([v_t, jnp.array([v_t[-1]] * (n - 1))])
 
-  return jax.lax.select(stop_target_gradients,
-                        jax.lax.stop_gradient(targets), targets)    
+    # Work backwards to compute n-step returns.
+    for i in reversed(range(n)):
+        r_ = r_t[i:i + seq_len]
+        discount_ = discount_t[i:i + seq_len]
+        lambda_ = lambda_t[i:i + seq_len]
+        v_ = v_t[i:i + seq_len]
+        targets = r_ + discount_ * ((1. - lambda_) * v_ + lambda_ * targets)
+
+    return jax.lax.select(stop_target_gradients,
+                          jax.lax.stop_gradient(targets), targets)
 
 
 def action2plane(action: int, shape):
